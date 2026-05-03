@@ -27,8 +27,25 @@ fn main() -> Result<(), Box<dyn Error>> {
                 println!("{} => not found", interp);
             }
         }
-        for needed in deps.needed {
-            print_library(&needed, &deps.libraries, 0, HashSet::new());
+        // Create a single shared history set for the entire tree
+        let mut history = HashSet::new();
+
+        // Claim all root dependencies BEFORE traversal
+        let mut root_deps = Vec::new();
+        for needed in &deps.needed {
+            let path_to_claim = deps
+                .libraries
+                .get(needed)
+                .and_then(|lib| lib.realpath.clone())
+                .unwrap_or_else(|| PathBuf::from(needed));
+
+            if history.insert(path_to_claim) {
+                root_deps.push(needed.clone());
+            }
+        }
+
+        for needed in root_deps {
+            print_library(&needed, &deps.libraries, 0, &mut history);
         }
     } else {
         eprintln!("USAGE: lddtree <pathname> [root] [library path...]");
@@ -41,29 +58,36 @@ fn print_library(
     name: &str,
     libraries: &HashMap<String, Library>,
     level: usize,
-    mut history: HashSet<PathBuf>,
+    history: &mut HashSet<PathBuf>,
 ) {
     let padding = " ".repeat(level);
     if let Some(lib) = libraries.get(name) {
         if let Some(path) = lib.realpath.as_ref() {
-            let looping = !history.insert(path.to_path_buf());
-            let loop_annotation = if looping { " (DEPENDENCY CYCLE)" } else { "" };
-            println!(
-                "{}{} => {}{}",
-                padding,
-                name,
-                path.display(),
-                loop_annotation
-            );
-            if looping {
-                return;
-            };
+            println!("{}{} => {}", padding, name, path.display());
         } else {
             println!("{}{} => not found", padding, name);
         }
 
+        // Claim children before recursing.
+        // This prevents duplicate prints and keeps shared foundational
+        // libraries as high up in the dependency tree as possible.
+        let mut children_to_visit = Vec::new();
+
         for needed in &lib.needed {
-            print_library(needed, libraries, level + 4, history.clone());
+            let path_to_claim = libraries
+                .get(needed)
+                .and_then(|dep_lib| dep_lib.realpath.clone())
+                .unwrap_or_else(|| PathBuf::from(needed));
+
+            // If we haven't seen this dependency anywhere higher up in the tree,
+            // claim it for this level and add it to the traversal queue.
+            if history.insert(path_to_claim) {
+                children_to_visit.push(needed.clone());
+            }
+        }
+
+        for needed in children_to_visit {
+            print_library(&needed, libraries, level + 4, history);
         }
     }
 }
