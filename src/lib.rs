@@ -294,8 +294,8 @@ impl DependencyAnalyzer {
             let interp_name = interp_path
                 .file_name()
                 .expect("missing filename")
-                .to_str()
-                .expect("Filename isn't valid Unicode");
+                .to_string_lossy()
+                .into_owned();
             let interp_realpath = fs::canonicalize(PathBuf::from(&interp_path)).ok();
             libraries.insert(
                 interp.to_string(),
@@ -332,10 +332,10 @@ impl DependencyAnalyzer {
             } else if path.contains("$ORIGIN") || path.contains("${ORIGIN}") {
                 let dylib_path = fs::canonicalize(dylib_path)?;
                 let dylib_dir = dylib_path.parent().expect("no parent");
-                let replacement = dylib_dir.to_str().unwrap();
+                let replacement = dylib_dir.to_string_lossy();
                 let path = path
-                    .replace("${ORIGIN}", replacement)
-                    .replace("$ORIGIN", replacement);
+                    .replace("${ORIGIN}", &replacement)
+                    .replace("$ORIGIN", &replacement);
                 fs::canonicalize(PathBuf::from(path))
             } else {
                 fs::canonicalize(self.root.join(path.strip_prefix('/').unwrap_or(path)))
