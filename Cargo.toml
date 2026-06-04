@@ -7,12 +7,18 @@ license = "MIT"
 keywords = ["ldd", "elf"]
 readme = "README.md"
 repository = "https://github.com/messense/lddtree-rs"
-rust-version = "1.85.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-fs-err = "3.0.0"
-glob = "0.3.0"
-goblin = "0.10.3"
+fs-err = "3"
+glob = "0.3"
+goblin = "0.10"
 memmap2 = "0.9"
+
+[profile.release]
+opt-level = 3
+debug = true
+lto = "fat"
+codegen-units = 1
+panic = "abort"
